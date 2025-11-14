@@ -23,27 +23,39 @@ class FleetInput(BaseModel):
     tasks: List[Task]
 
 # Create FastAPI app
-app = FastAPI()
+app = FastAPI(title="Fleet Optimizer API")
 
-# Allow React frontend
+# Allow frontend access (both local dev and deployed)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React frontend
+    allow_origins=[
+        "http://localhost:3000",  # Local frontend
+        "https://route-optimizer-3.onrender.com",  # Your deployed frontend URL
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Dummy route optimizer
+# Dummy route optimizer (round-robin assignment)
 @app.post("/optimize")
 def optimize(fleet: FleetInput):
     assignments: Dict[str, List[Task]] = {}
     routes: Dict[str, List[Task]] = {}
 
+    num_trucks = len(fleet.trucks)
+    if num_trucks == 0:
+        return {"assignments": {}, "routes": {}}
+
+    # Assign tasks to trucks round-robin
     for i, truck in enumerate(fleet.trucks):
-        # Assign tasks in round-robin style
-        truck_tasks = fleet.tasks[i::len(fleet.trucks)]
+        truck_tasks = fleet.tasks[i::num_trucks]
         assignments[truck.id] = truck_tasks
         routes[truck.id] = truck_tasks
 
     return {"assignments": assignments, "routes": routes}
+
+# Root health check
+@app.get("/")
+def root():
+    return {"message": "Fleet Optimizer API is running."}
