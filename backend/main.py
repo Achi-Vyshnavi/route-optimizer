@@ -1,9 +1,9 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict
 
-app = FastAPI()
-
+# Models
 class Location(BaseModel):
     lat: float
     lng: float
@@ -18,25 +18,32 @@ class Task(BaseModel):
     location: Location
     load: int
 
-class OptimizeRequest(BaseModel):
+class FleetInput(BaseModel):
     trucks: List[Truck]
     tasks: List[Task]
 
+# Create FastAPI app
+app = FastAPI()
+
+# Allow React frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # React frontend
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Dummy route optimizer
 @app.post("/optimize")
-def optimize_routes(data: OptimizeRequest):
-    # naive assignment: assign tasks sequentially until truck capacity runs out
+def optimize(fleet: FleetInput):
     assignments: Dict[str, List[Task]] = {}
     routes: Dict[str, List[Task]] = {}
 
-    for truck in data.trucks:
-        assignments[truck.id] = []
-        routes[truck.id] = []
-        remaining_capacity = truck.capacity
-        for task in data.tasks:
-            if task.load <= remaining_capacity and task.id not in [t.id for t in assignments[truck.id]]:
-                assignments[truck.id].append(task)
-                routes[truck.id].append(task)
-                remaining_capacity -= task.load
+    for i, truck in enumerate(fleet.trucks):
+        # Assign tasks in round-robin style
+        truck_tasks = fleet.tasks[i::len(fleet.trucks)]
+        assignments[truck.id] = truck_tasks
+        routes[truck.id] = truck_tasks
 
-    return {"assignments": {k:[t.dict() for t in v] for k,v in assignments.items()},
-            "routes": {k:[t.dict() for t in v] for k,v in routes.items()}}
+    return {"assignments": assignments, "routes": routes}
